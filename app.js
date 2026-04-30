@@ -8,6 +8,18 @@ const contractRouter = require("./routes/contractRoutes");
 const signatureRouter = require("./routes/signatureRoutes");
 const imageRouter = require("./routes/imageRoutes");
 
+const Contract = require("./models/contractModel");
+const { renderIndexHtml } = require("./utils/htmlRenderer");
+
+const DEFAULT_META = {
+  title: "שק\"ל - חתימות דיגיטליות",
+  description:
+    "מערכת חתימות דיגיטליות של עמותת שק\"ל - ניהול הצעות מחיר וחוזים מקוונים",
+};
+
+const buildBaseUrl = (req) => `${req.protocol}://${req.get("host")}`;
+const buildLogoUrl = (req) => `${buildBaseUrl(req)}/shekel-logo.png`;
+
 const app = express();
 
 app.set("trust proxy", true);
@@ -28,18 +40,51 @@ app.use("/api/v1/signatures", signatureRouter);
 app.use("/api/v1/images", imageRouter);
 
 app.use(express.static(path.join(__dirname, "public")));
-app.use(express.static(path.join(__dirname, "dist")));
+app.use(express.static(path.join(__dirname, "dist"), { index: false }));
+
+app.get("/sign/:token", async (req, res, next) => {
+  try {
+    const contract = await Contract.findOne({
+      shareToken: req.params.token,
+      status: "published",
+    }).select("title recipient");
+
+    let title;
+    let description;
+    if (contract) {
+      const recipientPart = contract.recipient
+        ? ` עבור ${contract.recipient}`
+        : "";
+      title = `${contract.title || "חוזה"}${recipientPart}`;
+      description = `הצעת מחיר${recipientPart} - לחץ כדי לסקור את החוזה ולחתום דיגיטלית`;
+    } else {
+      title = "קישור לחתימה דיגיטלית - שק\"ל";
+      description =
+        "קישור לחתימה דיגיטלית. אם הקישור פג תוקף, פנה לשולח החוזה.";
+    }
+
+    const html = renderIndexHtml({
+      title,
+      description,
+      url: `${buildBaseUrl(req)}/sign/${req.params.token}`,
+      image: buildLogoUrl(req),
+    });
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (err) {
+    next(err);
+  }
+});
 
 app.get("*", (req, res) => {
-  const indexPath = path.join(__dirname, "dist", "index.html");
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      res.status(404).json({
-        status: "fail",
-        message: `Can't find ${req.originalUrl} on this server!`,
-      });
-    }
+  const html = renderIndexHtml({
+    title: DEFAULT_META.title,
+    description: DEFAULT_META.description,
+    url: `${buildBaseUrl(req)}${req.originalUrl}`,
+    image: buildLogoUrl(req),
   });
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
 });
 
 app.use((err, req, res, next) => {

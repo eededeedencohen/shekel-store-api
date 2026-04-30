@@ -48,6 +48,10 @@ const contractSchema = new mongoose.Schema(
       enum: ["number", "dash", "dot", "star", "check", "arrow"],
       default: "number",
     },
+    bulletColor: {
+      type: String,
+      default: "#1E40AF",
+    },
     products: {
       type: [productSchema],
       default: [],

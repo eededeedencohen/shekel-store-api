@@ -116,6 +116,54 @@ exports.unpublishContract = catchAsync(async (req, res, next) => {
   res.status(200).json({ status: "success", data: { contract } });
 });
 
+exports.duplicateContract = catchAsync(async (req, res, next) => {
+  const orig = await Contract.findById(req.params.id);
+  if (!orig) {
+    return next(new AppError("No contract found with that ID", 404));
+  }
+
+  const cloneImage = async (filename) => {
+    if (!filename) return "";
+    const src = await Image.findOne({ filename });
+    if (!src) return "";
+    const ext = filename.includes(".") ? filename.split(".").pop() : "png";
+    const newFilename = `dup-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}.${ext}`;
+    await Image.create({
+      filename: newFilename,
+      contentType: src.contentType,
+      data: src.data,
+      category: src.category,
+    });
+    return newFilename;
+  };
+
+  const clonedProducts = await Promise.all(
+    (orig.products || []).map(async (p) => {
+      const obj = p.toObject ? p.toObject() : { ...p };
+      delete obj._id;
+      obj.imageFilename = await cloneImage(obj.imageFilename);
+      return obj;
+    })
+  );
+
+  const newContract = await Contract.create({
+    title: `${orig.title || "חוזה"} - עותק`,
+    recipient: orig.recipient,
+    bulletPoints: orig.bulletPoints,
+    bulletStyle: orig.bulletStyle,
+    bulletColor: orig.bulletColor,
+    products: clonedProducts,
+    closingNotes: orig.closingNotes,
+  });
+
+  res.status(201).json({
+    status: "success",
+    data: { contract: newContract },
+  });
+});
+
 exports.deleteContract = catchAsync(async (req, res, next) => {
   const contract = await Contract.findById(req.params.id);
   if (!contract) {

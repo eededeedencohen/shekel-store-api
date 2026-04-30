@@ -15,6 +15,7 @@ router
 
 router.patch("/:id/publish", contractController.publishContract);
 router.patch("/:id/unpublish", contractController.unpublishContract);
+router.post("/:id/duplicate", contractController.duplicateContract);
 
 router
   .route("/:id")

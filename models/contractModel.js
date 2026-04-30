@@ -14,6 +14,10 @@ const productSchema = new mongoose.Schema(
       enum: ["number", "dash", "dot", "star", "check", "arrow"],
       default: "dot",
     },
+    notesColor: {
+      type: String,
+      default: "#1E40AF",
+    },
     pricing: {
       unitPrice: { type: Number, default: 0 },
       discountPercent: { type: Number, default: 0 },

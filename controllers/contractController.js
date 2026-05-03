@@ -139,11 +139,27 @@ exports.duplicateContract = catchAsync(async (req, res, next) => {
     return newFilename;
   };
 
+  const cloneImages = async (filenames) => {
+    if (!Array.isArray(filenames) || !filenames.length) return [];
+    const cloned = await Promise.all(filenames.map(cloneImage));
+    return cloned.filter(Boolean);
+  };
+
   const clonedProducts = await Promise.all(
     (orig.products || []).map(async (p) => {
       const obj = p.toObject ? p.toObject() : { ...p };
       delete obj._id;
       obj.imageFilename = await cloneImage(obj.imageFilename);
+      obj.images = await cloneImages(obj.images);
+      if (Array.isArray(obj.packageItems) && obj.packageItems.length) {
+        obj.packageItems = await Promise.all(
+          obj.packageItems.map(async (item) => {
+            const itemObj = item.toObject ? item.toObject() : { ...item };
+            itemObj.images = await cloneImages(itemObj.images);
+            return itemObj;
+          })
+        );
+      }
       return obj;
     })
   );
@@ -152,6 +168,8 @@ exports.duplicateContract = catchAsync(async (req, res, next) => {
     title: `${orig.title || "חוזה"} - עותק`,
     recipient: orig.recipient,
     bulletPoints: orig.bulletPoints,
+    bulletsTitle: orig.bulletsTitle,
+    bulletsTitleVisible: orig.bulletsTitleVisible,
     bulletStyle: orig.bulletStyle,
     bulletColor: orig.bulletColor,
     products: clonedProducts,
@@ -172,10 +190,22 @@ exports.deleteContract = catchAsync(async (req, res, next) => {
 
   const signatures = await Signature.find({ contractId: contract._id });
 
+  const collectProductFilenames = (p) => {
+    const out = [];
+    if (p.imageFilename) out.push(p.imageFilename);
+    if (Array.isArray(p.images)) out.push(...p.images.filter(Boolean));
+    if (Array.isArray(p.packageItems)) {
+      p.packageItems.forEach((item) => {
+        if (Array.isArray(item.images)) {
+          out.push(...item.images.filter(Boolean));
+        }
+      });
+    }
+    return out;
+  };
+
   const filenamesToDelete = [
-    ...(contract.products || [])
-      .map((p) => p.imageFilename)
-      .filter(Boolean),
+    ...(contract.products || []).flatMap(collectProductFilenames),
     ...signatures.map((s) => s.signatureFilename).filter(Boolean),
   ];
 

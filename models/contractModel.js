@@ -5,9 +5,27 @@ const tokenAlphabet =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const generateToken = customAlphabet(tokenAlphabet, 16);
 
-const productSchema = new mongoose.Schema(
+const packageItemSchema = new mongoose.Schema(
   {
     description: { type: String, default: "" },
+    images: { type: [String], default: [] },
+    notes: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const productSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["single", "package"],
+      default: "single",
+    },
+    description: { type: String, default: "" },
+    images: { type: [String], default: [] },
+    imageFilename: { type: String, default: "" },
+    packageTitle: { type: String, default: "" },
+    packageItems: { type: [packageItemSchema], default: [] },
     notes: { type: [String], default: [] },
     notesStyle: {
       type: String,
@@ -26,7 +44,6 @@ const productSchema = new mongoose.Schema(
       totalForMinimum: { type: Number, default: 0 },
       freeText: { type: String, default: "" },
     },
-    imageFilename: { type: String, default: "" },
   },
   { _id: true }
 );
@@ -46,6 +63,15 @@ const contractSchema = new mongoose.Schema(
     bulletPoints: {
       type: [String],
       default: [],
+    },
+    bulletsTitle: {
+      type: String,
+      default: "נקודות עיקריות",
+      trim: true,
+    },
+    bulletsTitleVisible: {
+      type: Boolean,
+      default: true,
     },
     bulletStyle: {
       type: String,

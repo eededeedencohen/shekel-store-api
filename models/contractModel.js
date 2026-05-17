@@ -64,6 +64,10 @@ const contractSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    bulletPointsLocked: {
+      type: [Boolean],
+      default: [],
+    },
     bulletsTitle: {
       type: String,
       default: "נקודות עיקריות",

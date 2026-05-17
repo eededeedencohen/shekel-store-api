@@ -168,6 +168,7 @@ exports.duplicateContract = catchAsync(async (req, res, next) => {
     title: `${orig.title || "חוזה"} - עותק`,
     recipient: orig.recipient,
     bulletPoints: orig.bulletPoints,
+    bulletPointsLocked: orig.bulletPointsLocked,
     bulletsTitle: orig.bulletsTitle,
     bulletsTitleVisible: orig.bulletsTitleVisible,
     bulletStyle: orig.bulletStyle,

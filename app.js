@@ -7,6 +7,7 @@ const authRouter = require("./routes/authRoutes");
 const contractRouter = require("./routes/contractRoutes");
 const signatureRouter = require("./routes/signatureRoutes");
 const imageRouter = require("./routes/imageRoutes");
+const catalogRouter = require("./routes/catalogRoutes");
 
 const Contract = require("./models/contractModel");
 const { renderIndexHtml } = require("./utils/htmlRenderer");
@@ -38,6 +39,7 @@ app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/contracts", contractRouter);
 app.use("/api/v1/signatures", signatureRouter);
 app.use("/api/v1/images", imageRouter);
+app.use("/api/v1/catalog", catalogRouter);
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "dist"), { index: false }));

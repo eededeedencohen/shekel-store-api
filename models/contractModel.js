@@ -14,6 +14,15 @@ const packageItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const shippingSchema = new mongoose.Schema(
+  {
+    title: { type: String, default: "משלוח אקספרס", trim: true },
+    price: { type: Number, default: 0 },
+    color: { type: String, default: "#1E40AF" },
+  },
+  { _id: true }
+);
+
 const productSchema = new mongoose.Schema(
   {
     type: {
@@ -90,6 +99,10 @@ const contractSchema = new mongoose.Schema(
       type: [productSchema],
       default: [],
     },
+    shippings: {
+      type: [shippingSchema],
+      default: [],
+    },
     closingNotes: {
       type: String,
       default: "",
@@ -103,6 +116,10 @@ const contractSchema = new mongoose.Schema(
       type: String,
       unique: true,
       sparse: true,
+    },
+    pinned: {
+      type: Boolean,
+      default: false,
     },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },

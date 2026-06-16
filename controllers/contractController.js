@@ -174,6 +174,11 @@ exports.duplicateContract = catchAsync(async (req, res, next) => {
     bulletStyle: orig.bulletStyle,
     bulletColor: orig.bulletColor,
     products: clonedProducts,
+    shippings: (orig.shippings || []).map((s) => {
+      const obj = s.toObject ? s.toObject() : { ...s };
+      delete obj._id;
+      return obj;
+    }),
     closingNotes: orig.closingNotes,
   });
 

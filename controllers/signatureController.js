@@ -60,6 +60,8 @@ exports.checkSignature = catchAsync(async (req, res, next) => {
             signedAtIsrael: sig.signedAtIsrael,
             signatureUrl: `/api/v1/images/${sig.signatureFilename}`,
             signerNote: sig.signerNote,
+            chosenOptionId: sig.chosenOptionId,
+            chosenOptionLabel: sig.chosenOptionLabel,
           }
         : null,
     },
@@ -101,6 +103,8 @@ exports.verifySignature = catchAsync(async (req, res, next) => {
         signatureUrl: `/api/v1/images/${sig.signatureFilename}`,
         signerNote: sig.signerNote,
         ipAddress: sig.ipAddress,
+        chosenOptionId: sig.chosenOptionId,
+        chosenOptionLabel: sig.chosenOptionLabel,
       },
     },
   });
@@ -108,8 +112,14 @@ exports.verifySignature = catchAsync(async (req, res, next) => {
 
 exports.createSignature = catchAsync(async (req, res, next) => {
   const { token } = req.params;
-  const { signerName, signerIdNumber, signerNote, signatureFilename } =
-    req.body;
+  const {
+    signerName,
+    signerIdNumber,
+    signerNote,
+    signatureFilename,
+    chosenOptionId,
+    chosenOptionLabel,
+  } = req.body;
 
   if (!signerName || !signerIdNumber || !signatureFilename) {
     return next(new AppError("Missing required fields", 400));
@@ -121,6 +131,15 @@ exports.createSignature = catchAsync(async (req, res, next) => {
   });
   if (!contract) {
     return next(new AppError("Contract not found", 404));
+  }
+
+  // If contract has options, chosen option is required
+  if (
+    Array.isArray(contract.options) &&
+    contract.options.length > 0 &&
+    !chosenOptionId
+  ) {
+    return next(new AppError("יש לבחור אפשרות לפני החתימה", 400));
   }
 
   const idNorm = normalizeId(signerIdNumber);
@@ -138,6 +157,17 @@ exports.createSignature = catchAsync(async (req, res, next) => {
   const ip = getClientIp(req);
   const now = new Date();
 
+  let resolvedOptionLabel = "";
+  if (chosenOptionId) {
+    const chosen = (contract.options || []).find(
+      (o) => String(o._id) === String(chosenOptionId)
+    );
+    if (!chosen) {
+      return next(new AppError("האפשרות שנבחרה לא נמצאה בחוזה", 400));
+    }
+    resolvedOptionLabel = chosenOptionLabel || chosen.label || "";
+  }
+
   const signature = await Signature.create({
     contractId: contract._id,
     shareToken: token,
@@ -148,6 +178,8 @@ exports.createSignature = catchAsync(async (req, res, next) => {
     ipAddress: ip,
     signedAt: now,
     signedAtIsrael: formatIsraelTime(now),
+    chosenOptionId: chosenOptionId || "",
+    chosenOptionLabel: resolvedOptionLabel,
   });
 
   res.status(201).json({

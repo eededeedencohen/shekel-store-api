@@ -81,10 +81,10 @@ exports.remove = catchAsync(async (req, res, next) => {
   if (!item) {
     return next(new AppError("Catalog product not found", 404));
   }
-  const filenames = collectFilenamesFromProduct(item);
-  if (filenames.length > 0) {
-    await Image.deleteMany({ filename: { $in: filenames } });
-  }
+  // Don't delete the underlying image files — they may be referenced by
+  // contracts that cloned this catalog product (the client-side clone
+  // reuses filenames instead of doing an expensive server-side image copy).
+  // Some orphans are an acceptable trade-off for instant catalog operations.
   await CatalogProduct.deleteOne({ _id: item._id });
   res.status(204).json({ status: "success", data: null });
 });
@@ -133,21 +133,24 @@ exports.saveFromContractProduct = catchAsync(async (req, res, next) => {
   if (!product || typeof product !== "object") {
     return next(new AppError("פרטי המוצר חסרים", 400));
   }
-  const clonedImages = await cloneImageList(product.images, "cat-save");
-  const clonedPackageItems = await Promise.all(
-    (product.packageItems || []).map(async (it) => ({
-      description: it.description || "",
-      images: await cloneImageList(it.images, "cat-save"),
-      notes: Array.isArray(it.notes) ? [...it.notes] : [],
-    }))
-  );
+  // Reuse the existing image filenames instead of cloning the image bytes.
+  // Contracts and catalog items both reference the same image documents;
+  // deletion of either side leaves the images intact (see remove handlers).
+  const sharedImages = Array.isArray(product.images)
+    ? product.images.filter(Boolean)
+    : [];
+  const sharedPackageItems = (product.packageItems || []).map((it) => ({
+    description: it.description || "",
+    images: Array.isArray(it.images) ? it.images.filter(Boolean) : [],
+    notes: Array.isArray(it.notes) ? [...it.notes] : [],
+  }));
   const created = await CatalogProduct.create({
     name: name.trim(),
     type: product.type === "package" ? "package" : "single",
     description: product.description || "",
-    images: clonedImages,
+    images: sharedImages,
     packageTitle: product.packageTitle || "",
-    packageItems: clonedPackageItems,
+    packageItems: sharedPackageItems,
     notes: Array.isArray(product.notes) ? [...product.notes] : [],
     notesStyle: product.notesStyle || "dot",
     notesColor: product.notesColor || "#1E40AF",

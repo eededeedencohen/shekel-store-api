@@ -57,6 +57,15 @@ const productSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const contractOptionSchema = new mongoose.Schema(
+  {
+    label: { type: String, default: "אפשרות", trim: true },
+    products: { type: [productSchema], default: [] },
+    shippings: { type: [shippingSchema], default: [] },
+  },
+  { _id: true }
+);
+
 const contractSchema = new mongoose.Schema(
   {
     title: {
@@ -101,6 +110,10 @@ const contractSchema = new mongoose.Schema(
     },
     shippings: {
       type: [shippingSchema],
+      default: [],
+    },
+    options: {
+      type: [contractOptionSchema],
       default: [],
     },
     closingNotes: {

@@ -42,6 +42,14 @@ const signatureSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  chosenOptionId: {
+    type: String,
+    default: "",
+  },
+  chosenOptionLabel: {
+    type: String,
+    default: "",
+  },
 });
 
 signatureSchema.index({ shareToken: 1, signerIdNumber: 1 }, { unique: true });

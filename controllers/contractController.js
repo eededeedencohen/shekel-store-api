@@ -61,6 +61,8 @@ exports.getContractByToken = catchAsync(async (req, res, next) => {
         signatureFilename: existingSignature.signatureFilename,
         signedAt: existingSignature.signedAt,
         signedAtIsrael: existingSignature.signedAtIsrael,
+        chosenOptionId: existingSignature.chosenOptionId,
+        chosenOptionLabel: existingSignature.chosenOptionLabel,
       }
     : null;
 
@@ -122,47 +124,31 @@ exports.duplicateContract = catchAsync(async (req, res, next) => {
     return next(new AppError("No contract found with that ID", 404));
   }
 
-  const cloneImage = async (filename) => {
-    if (!filename) return "";
-    const src = await Image.findOne({ filename });
-    if (!src) return "";
-    const ext = filename.includes(".") ? filename.split(".").pop() : "png";
-    const newFilename = `dup-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 10)}.${ext}`;
-    await Image.create({
-      filename: newFilename,
-      contentType: src.contentType,
-      data: src.data,
-      category: src.category,
-    });
-    return newFilename;
+  // Reuse image filenames instead of cloning bytes. Both contracts reference
+  // the same Image documents; deleting either contract no longer purges its
+  // images (see deleteContract), so this is safe and instant.
+  const reuseProduct = (p) => {
+    const obj = p.toObject ? p.toObject() : { ...p };
+    delete obj._id;
+    obj.images = Array.isArray(obj.images) ? [...obj.images] : [];
+    if (Array.isArray(obj.packageItems) && obj.packageItems.length) {
+      obj.packageItems = obj.packageItems.map((item) => {
+        const itemObj = item.toObject ? item.toObject() : { ...item };
+        itemObj.images = Array.isArray(itemObj.images)
+          ? [...itemObj.images]
+          : [];
+        return itemObj;
+      });
+    }
+    return obj;
   };
 
-  const cloneImages = async (filenames) => {
-    if (!Array.isArray(filenames) || !filenames.length) return [];
-    const cloned = await Promise.all(filenames.map(cloneImage));
-    return cloned.filter(Boolean);
-  };
-
-  const clonedProducts = await Promise.all(
-    (orig.products || []).map(async (p) => {
-      const obj = p.toObject ? p.toObject() : { ...p };
+  const reuseShippingsList = (arr) =>
+    (arr || []).map((s) => {
+      const obj = s.toObject ? s.toObject() : { ...s };
       delete obj._id;
-      obj.imageFilename = await cloneImage(obj.imageFilename);
-      obj.images = await cloneImages(obj.images);
-      if (Array.isArray(obj.packageItems) && obj.packageItems.length) {
-        obj.packageItems = await Promise.all(
-          obj.packageItems.map(async (item) => {
-            const itemObj = item.toObject ? item.toObject() : { ...item };
-            itemObj.images = await cloneImages(itemObj.images);
-            return itemObj;
-          })
-        );
-      }
       return obj;
-    })
-  );
+    });
 
   const newContract = await Contract.create({
     title: `${orig.title || "חוזה"} - עותק`,
@@ -173,11 +159,14 @@ exports.duplicateContract = catchAsync(async (req, res, next) => {
     bulletsTitleVisible: orig.bulletsTitleVisible,
     bulletStyle: orig.bulletStyle,
     bulletColor: orig.bulletColor,
-    products: clonedProducts,
-    shippings: (orig.shippings || []).map((s) => {
-      const obj = s.toObject ? s.toObject() : { ...s };
-      delete obj._id;
-      return obj;
+    products: (orig.products || []).map(reuseProduct),
+    shippings: reuseShippingsList(orig.shippings),
+    options: (orig.options || []).map((opt) => {
+      const optObj = opt.toObject ? opt.toObject() : { ...opt };
+      delete optObj._id;
+      optObj.products = (optObj.products || []).map(reuseProduct);
+      optObj.shippings = reuseShippingsList(optObj.shippings);
+      return optObj;
     }),
     closingNotes: orig.closingNotes,
   });
@@ -196,27 +185,15 @@ exports.deleteContract = catchAsync(async (req, res, next) => {
 
   const signatures = await Signature.find({ contractId: contract._id });
 
-  const collectProductFilenames = (p) => {
-    const out = [];
-    if (p.imageFilename) out.push(p.imageFilename);
-    if (Array.isArray(p.images)) out.push(...p.images.filter(Boolean));
-    if (Array.isArray(p.packageItems)) {
-      p.packageItems.forEach((item) => {
-        if (Array.isArray(item.images)) {
-          out.push(...item.images.filter(Boolean));
-        }
-      });
-    }
-    return out;
-  };
-
-  const filenamesToDelete = [
-    ...(contract.products || []).flatMap(collectProductFilenames),
-    ...signatures.map((s) => s.signatureFilename).filter(Boolean),
-  ];
-
-  if (filenamesToDelete.length > 0) {
-    await Image.deleteMany({ filename: { $in: filenamesToDelete } });
+  // Only delete signature images — those are tied 1:1 to the signature and
+  // are not shared. Product/package images are intentionally kept alive
+  // because they may be shared with catalog items (cloned by reusing
+  // filenames instead of copying bytes, for instant editor performance).
+  const signatureFilenames = signatures
+    .map((s) => s.signatureFilename)
+    .filter(Boolean);
+  if (signatureFilenames.length > 0) {
+    await Image.deleteMany({ filename: { $in: signatureFilenames } });
   }
   await Signature.deleteMany({ contractId: contract._id });
   await Contract.deleteOne({ _id: contract._id });

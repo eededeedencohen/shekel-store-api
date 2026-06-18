@@ -62,6 +62,7 @@ exports.checkSignature = catchAsync(async (req, res, next) => {
             signerNote: sig.signerNote,
             chosenOptionId: sig.chosenOptionId,
             chosenOptionLabel: sig.chosenOptionLabel,
+            chosenOptions: sig.chosenOptions || [],
           }
         : null,
     },
@@ -105,6 +106,7 @@ exports.verifySignature = catchAsync(async (req, res, next) => {
         ipAddress: sig.ipAddress,
         chosenOptionId: sig.chosenOptionId,
         chosenOptionLabel: sig.chosenOptionLabel,
+        chosenOptions: sig.chosenOptions || [],
       },
     },
   });
@@ -117,6 +119,9 @@ exports.createSignature = catchAsync(async (req, res, next) => {
     signerIdNumber,
     signerNote,
     signatureFilename,
+    // New: array of { sectionIdx, optionId, optionLabel } — one per section
+    chosenOptions,
+    // Legacy single-choice fields — accepted for back-compat
     chosenOptionId,
     chosenOptionLabel,
   } = req.body;
@@ -133,14 +138,68 @@ exports.createSignature = catchAsync(async (req, res, next) => {
     return next(new AppError("Contract not found", 404));
   }
 
-  // If contract has options, chosen option is required
-  if (
-    Array.isArray(contract.options) &&
-    contract.options.length > 0 &&
-    !chosenOptionId
-  ) {
-    return next(new AppError("יש לבחור אפשרות לפני החתימה", 400));
+  // Group contract options by their section idx to know how many
+  // section-commits the customer is expected to send.
+  const optionsBySection = new Map();
+  (contract.options || []).forEach((opt) => {
+    const sIdx = opt.choiceSectionIdx || 0;
+    if (!optionsBySection.has(sIdx)) optionsBySection.set(sIdx, []);
+    optionsBySection.get(sIdx).push(opt);
+  });
+  const expectedSectionIdxs = Array.from(optionsBySection.keys()).sort(
+    (a, b) => a - b
+  );
+
+  // Normalize the client payload into an array of { sectionIdx, optionId, optionLabel }.
+  // Accept new chosenOptions[] first; fall back to legacy single-field for
+  // contracts that pre-date multi-section choices.
+  let chosenList = [];
+  if (Array.isArray(chosenOptions) && chosenOptions.length > 0) {
+    chosenList = chosenOptions
+      .filter((c) => c && c.optionId)
+      .map((c) => ({
+        sectionIdx: Number(c.sectionIdx) || 0,
+        optionId: String(c.optionId),
+        optionLabel: c.optionLabel ? String(c.optionLabel) : "",
+      }));
+  } else if (chosenOptionId) {
+    chosenList = [
+      {
+        sectionIdx: 0,
+        optionId: String(chosenOptionId),
+        optionLabel: chosenOptionLabel ? String(chosenOptionLabel) : "",
+      },
+    ];
   }
+
+  // Every section must receive a commit.
+  const chosenSectionIdxs = new Set(chosenList.map((c) => c.sectionIdx));
+  const missing = expectedSectionIdxs.filter(
+    (s) => !chosenSectionIdxs.has(s)
+  );
+  if (missing.length > 0) {
+    return next(
+      new AppError("יש לבחור אפשרות אחת מכל סקשן לפני החתימה", 400)
+    );
+  }
+
+  // Validate each chosen option actually exists in the matching section.
+  const resolvedChosenOptions = [];
+  for (const chosen of chosenList) {
+    const sectionOptions = optionsBySection.get(chosen.sectionIdx) || [];
+    const match = sectionOptions.find(
+      (o) => String(o._id) === String(chosen.optionId)
+    );
+    if (!match) {
+      return next(new AppError("האפשרות שנבחרה לא נמצאה בחוזה", 400));
+    }
+    resolvedChosenOptions.push({
+      sectionIdx: chosen.sectionIdx,
+      optionId: chosen.optionId,
+      optionLabel: chosen.optionLabel || match.label || "",
+    });
+  }
+  resolvedChosenOptions.sort((a, b) => a.sectionIdx - b.sectionIdx);
 
   const idNorm = normalizeId(signerIdNumber);
 
@@ -157,16 +216,7 @@ exports.createSignature = catchAsync(async (req, res, next) => {
   const ip = getClientIp(req);
   const now = new Date();
 
-  let resolvedOptionLabel = "";
-  if (chosenOptionId) {
-    const chosen = (contract.options || []).find(
-      (o) => String(o._id) === String(chosenOptionId)
-    );
-    if (!chosen) {
-      return next(new AppError("האפשרות שנבחרה לא נמצאה בחוזה", 400));
-    }
-    resolvedOptionLabel = chosenOptionLabel || chosen.label || "";
-  }
+  const firstChosen = resolvedChosenOptions[0];
 
   const signature = await Signature.create({
     contractId: contract._id,
@@ -178,8 +228,9 @@ exports.createSignature = catchAsync(async (req, res, next) => {
     ipAddress: ip,
     signedAt: now,
     signedAtIsrael: formatIsraelTime(now),
-    chosenOptionId: chosenOptionId || "",
-    chosenOptionLabel: resolvedOptionLabel,
+    chosenOptions: resolvedChosenOptions,
+    chosenOptionId: firstChosen ? firstChosen.optionId : "",
+    chosenOptionLabel: firstChosen ? firstChosen.optionLabel : "",
   });
 
   res.status(201).json({

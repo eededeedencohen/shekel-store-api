@@ -62,6 +62,11 @@ const contractOptionSchema = new mongoose.Schema(
     label: { type: String, default: "אפשרות", trim: true },
     products: { type: [productSchema], default: [] },
     shippings: { type: [shippingSchema], default: [] },
+    // Which choice section this option belongs to. Multiple choice
+    // sections can coexist in a contract; the customer commits one
+    // option per section. Defaults to 0 for backward compat with
+    // single-section contracts.
+    choiceSectionIdx: { type: Number, default: 0 },
   },
   { _id: true }
 );

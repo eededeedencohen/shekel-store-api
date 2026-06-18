@@ -42,6 +42,8 @@ const signatureSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  // Legacy single-choice fields — kept populated with the FIRST chosen
+  // option for backward compatibility with older read paths.
   chosenOptionId: {
     type: String,
     default: "",
@@ -49,6 +51,17 @@ const signatureSchema = new mongoose.Schema({
   chosenOptionLabel: {
     type: String,
     default: "",
+  },
+  // One entry per choice section the contract presented.
+  chosenOptions: {
+    type: [
+      {
+        sectionIdx: { type: Number, default: 0 },
+        optionId: { type: String, default: "" },
+        optionLabel: { type: String, default: "" },
+      },
+    ],
+    default: [],
   },
 });
 

@@ -63,6 +63,7 @@ exports.getContractByToken = catchAsync(async (req, res, next) => {
         signedAtIsrael: existingSignature.signedAtIsrael,
         chosenOptionId: existingSignature.chosenOptionId,
         chosenOptionLabel: existingSignature.chosenOptionLabel,
+        chosenOptions: existingSignature.chosenOptions || [],
       }
     : null;
 

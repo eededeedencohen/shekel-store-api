@@ -23,6 +23,9 @@ const catalogProductSchema = new mongoose.Schema(
     },
     description: { type: String, default: "" },
     images: { type: [String], default: [] },
+    // Manual desktop gallery arrangement carried over from the contract
+    // product (same shape as contractModel's productSchema.imageLayout).
+    imageLayout: { type: mongoose.Schema.Types.Mixed, default: null },
     packageTitle: { type: String, default: "" },
     packageItems: { type: [packageItemSchema], default: [] },
     notes: { type: [String], default: [] },

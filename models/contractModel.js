@@ -33,6 +33,10 @@ const productSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     images: { type: [String], default: [] },
     imageFilename: { type: String, default: "" },
+    // Manual desktop arrangement of the side gallery, authored in the
+    // editor's arrange-images modal. null = automatic justified layout.
+    // Shape: { canvasWidth: Number, items: [{ f, x, y, w, h }] }
+    imageLayout: { type: mongoose.Schema.Types.Mixed, default: null },
     packageTitle: { type: String, default: "" },
     packageItems: { type: [packageItemSchema], default: [] },
     notes: { type: [String], default: [] },

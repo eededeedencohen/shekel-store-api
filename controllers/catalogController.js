@@ -95,10 +95,33 @@ exports.clone = catchAsync(async (req, res, next) => {
     return next(new AppError("Catalog product not found", 404));
   }
   const src = item.toObject();
+  // Clone product images while keeping the old→new filename mapping, so
+  // the manual gallery arrangement can be remapped onto the new copies.
+  const imagePairs = await Promise.all(
+    (Array.isArray(src.images) ? src.images.filter(Boolean) : []).map(
+      async (f) => [f, await cloneImageFile(f, "cat-cp")]
+    )
+  );
+  const renames = {};
+  imagePairs.forEach(([oldF, newF]) => {
+    if (newF) renames[oldF] = newF;
+  });
+  const clonedImageLayout =
+    src.imageLayout && Array.isArray(src.imageLayout.items)
+      ? {
+          canvasWidth: src.imageLayout.canvasWidth,
+          items: src.imageLayout.items
+            .map((it) =>
+              it && renames[it.f] ? { ...it, f: renames[it.f] } : null
+            )
+            .filter(Boolean),
+        }
+      : null;
   const cloned = {
     type: src.type || "single",
     description: src.description || "",
-    images: await cloneImageList(src.images, "cat-cp"),
+    images: imagePairs.map(([, newF]) => newF).filter(Boolean),
+    imageLayout: clonedImageLayout,
     imageFilename: "",
     packageTitle: src.packageTitle || "",
     packageItems: await Promise.all(
@@ -149,6 +172,12 @@ exports.saveFromContractProduct = catchAsync(async (req, res, next) => {
     type: product.type === "package" ? "package" : "single",
     description: product.description || "",
     images: sharedImages,
+    // Keep the manual gallery arrangement — filenames are shared, so the
+    // saved x/y/w/h entries stay valid for the catalog copy too.
+    imageLayout:
+      product.imageLayout && typeof product.imageLayout === "object"
+        ? product.imageLayout
+        : null,
     packageTitle: product.packageTitle || "",
     packageItems: sharedPackageItems,
     notes: Array.isArray(product.notes) ? [...product.notes] : [],

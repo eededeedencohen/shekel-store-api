@@ -154,6 +154,9 @@ exports.duplicateContract = catchAsync(async (req, res, next) => {
   const newContract = await Contract.create({
     title: `${orig.title || "חוזה"} - עותק`,
     recipient: orig.recipient,
+    introTitle: orig.introTitle,
+    introText: orig.introText,
+    introVisible: orig.introVisible,
     bulletPoints: orig.bulletPoints,
     bulletPointsLocked: orig.bulletPointsLocked,
     bulletsTitle: orig.bulletsTitle,

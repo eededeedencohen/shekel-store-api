@@ -87,6 +87,22 @@ const contractSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // Opening section rendered between "לכבוד" and the products. Rich
+    // HTML from the editor; new contracts are seeded from
+    // Settings.introDefault. Empty text hides the section entirely.
+    introTitle: {
+      type: String,
+      default: "הקדמה",
+      trim: true,
+    },
+    introText: {
+      type: String,
+      default: "",
+    },
+    introVisible: {
+      type: Boolean,
+      default: true,
+    },
     bulletPoints: {
       type: [String],
       default: [],

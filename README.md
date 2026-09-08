@@ -75,6 +75,8 @@ All endpoints are under `/api/v1`.
 - `POST   /images/upload`                   *(admin)*
 - `POST   /images/upload-signature`         *(public)*
 - `GET    /images/:filename`                *(public)*
+- `GET    /settings`                        *(admin — global defaults, e.g. the intro section seeded into new contracts)*
+- `PATCH  /settings`                        *(admin — whitelisted keys only: `introDefault`)*
 
 ## SPA hosting
 
